@@ -5,7 +5,8 @@
 
 #define DEBUG_EPOCHS false
 #define DEBUG_CANDIDATES false
-#define DEBUG_LAST_IMPROV false
+#define DEBUG_LAST_IMPROV true
+#define DEBUG_ITERATIONS true
 
 using namespace std;
 
@@ -44,9 +45,9 @@ void printStatus(double currentPoint[2], double stepSize[2]){
 
 double* hillClimb(double *finalScore){
 	// number of iterations with no moves before we conclude that we converged
-	int burnoutEpochs = 25; 
-	double stepSize[2] = {1, 1};
-	double acceleration = 1.2;	// same acceleration for both dimensions ??? 
+	int burnoutEpochs = 100; 
+	double stepSize[2] = {0.5, 0.5};
+	double acceleration = 2;	// same acceleration for both dimensions ??? 
 	double epsilon = 0.1;
 
 	// define initial starting point
@@ -55,10 +56,11 @@ double* hillClimb(double *finalScore){
 		return NULL;
 	}
 	for(int i = 0; i < 2; ++i){
-		currentPoint[i] = 0;
+		currentPoint[i] = 5;
 	}
 	
 	int epoch = 1;
+	int iterations = 0;
 	double lastImprovement = 0;
 	while(true){
 		// compute initial score
@@ -98,6 +100,7 @@ double* hillClimb(double *finalScore){
 		
 		double now = func(currentPoint);
 		double improvement = now - before;
+		++iterations;
 		if(DEBUG_EPOCHS){
 			printf("Epoch %d !!!!!!!!!!!!!!!!!!!!\n",epoch);
 			printf("Now : %.2f - improvement : %.2f \n", now, improvement );
@@ -110,6 +113,9 @@ double* hillClimb(double *finalScore){
 			else{
 				if(DEBUG_LAST_IMPROV){
 					printf("Last improvement : %.2f\n", lastImprovement);	
+				}
+				if(DEBUG_ITERATIONS){
+					printf("Converged after %d iterations \n", iterations);
 				}
 				*finalScore = now;
 				return currentPoint;
