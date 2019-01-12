@@ -57,7 +57,7 @@ void printStatus(double currentPoint[2], double stepSize[2]){
 				currentPoint[0], currentPoint[1], stepSize[0], stepSize[1]);
 }
 
-double* hillClimb(double *finalScore){
+double* hillClimb(double *finalScore, int coordX, int coordY){
 	// number of iterations with no moves before we conclude that we converged
 	int burnoutEpochs = 100;
 	double stepSize[2] = {0.5, 0.5};
@@ -69,9 +69,8 @@ double* hillClimb(double *finalScore){
 	if(!currentPoint){
 		return NULL;
 	}
-	for(int i = 0; i < 2; ++i){
-		currentPoint[i] = 5;
-	}
+	currentPoint[0] = coordX;
+	currentPoint[1] = coordY;
 
 	int epoch = 1;
 	int iterations = 0;
@@ -125,12 +124,6 @@ double* hillClimb(double *finalScore){
 				++epoch;
 			}
 			else{
-				if(DEBUG_LAST_IMPROV){
-					printf("Last improvement : %.2f\n", lastImprovement);
-				}
-				if(DEBUG_ITERATIONS){
-					printf("Converged after %d iterations \n", iterations);
-				}
 				*finalScore = now;
 				return currentPoint;
 			}
@@ -227,13 +220,26 @@ double* hill_climbing_point(promise<Data> && p, double *finalScore, int coordX, 
 	}
 }
 
-void parallel_stations_climbing() {
-    cout << "\nParallel climbing stations:" << endl;
+void sequential_climbing() {
+    cout << "\nSequential climbing:" << endl;
+    double score;
+    double bestClimber[2], bestScore;
+	for(int i = 0; i < 100; i++) {
+        double *climber = hillClimb(&score, rand() % 100, rand() % 100);
+        if(score > bestScore) {
+            bestScore = score;
+            bestClimber[0] = climber[0];
+            bestClimber[1] = climber[1];
+        }
+	}
+	printf("Finest climber at %.2f meters : (%.2f, %.2f)\n", bestScore, bestClimber[0], bestClimber[1]);
+}
+
+void parallel_climbing() {
+    cout << "\nParallel climbing:" << endl;
     std::vector<std::thread> threads;
     promise<Data> promises[100];
     std::vector<future<Data>> futures;
-
-    std::srand (std::time (0));
 
 	double score;
 	double best, best_climber[2], coord[2];
@@ -265,18 +271,17 @@ void parallel_stations_climbing() {
 
 int main(int argc, char const *argv[])
 {
-	double score;
+    std::srand (std::time (0));
 	high_resolution_clock::time_point t3 = high_resolution_clock::now();
-	double *climber = hillClimb(&score);
-	high_resolution_clock::time_point t4 = high_resolution_clock::now();
-	printf("Finest climber at %.2f meters : (%.2f, %.2f)\n", score, climber[0], climber[1]);
+	sequential_climbing();
+    high_resolution_clock::time_point t4 = high_resolution_clock::now();
 
 	high_resolution_clock::time_point t1 = high_resolution_clock::now();
-	parallel_stations_climbing();
+	parallel_climbing();
     high_resolution_clock::time_point t2 = high_resolution_clock::now();
 
-    cout << "\nExecution simple climbing : " << duration_cast<milliseconds>( t4 - t3 ).count();
-    cout << "\nExecution time parallel stations climbing : " << duration_cast<milliseconds>( t2 - t1 ).count() << endl;
+    cout << "\nExecution sequential climbing : " << duration_cast<milliseconds>( t4 - t3 ).count() << " milliseconds.";
+    cout << "\nExecution parallel climbing : " << duration_cast<milliseconds>( t2 - t1 ).count() << " milliseconds." << endl;
 
 	return 0;
 }
