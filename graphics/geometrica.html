@@ -1,0 +1,76 @@
+<html>
+    <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="plotly.min.js"></script>
+    </head>
+    <body>
+    <div class="wrapper">
+        <div id="chart"></div>
+        <script>
+            function getData() {
+                var arr = [];
+                for(let i=0;i<20;i++) {
+					var data = [];
+					for(let j = 0; j < 20; j++){
+						data.push(func(i,j));
+					}
+					arr.push(data)
+				}
+                return arr;
+            }  
+			
+			function func(phi, p) {
+
+				var result = 35000 * Math.sin(3 * phi) * Math.sin(2 * p)
+					+ 9700 * Math.cos(10 * phi) * Math.cos(20 * p)
+					- 800 * Math.sin(25 * phi + 0.03 * 3.1415)
+					+ 550 * Math.cos(p + 0.2 * 3.1415);
+				return result;
+			}
+            var data = getData();
+			var layout = {
+			  autosize: false,
+			  width: 1700,
+			  height: 1700,
+			  l: 0,
+			  r: 0,
+			  b: 0,
+			  t: 0,
+			  showlegend: false
+			  };
+            
+                
+            Plotly.newPlot('chart', [{
+                   z: data,
+				   showscale: false,
+                   type: 'surface'
+            }], layout);
+			
+			setInterval(function(){ 
+				var xx = [];
+				var yy = [];
+				var zz = [];	
+				
+				xx.push(Math.random() * 20);
+				yy.push(Math.random() * 20);
+				zz.push(Math.random() * 30000);
+				var data = [{
+					x: xx,
+					y: yy,
+					z: zz,
+					mode: 'markers',
+					type: 'scatter3d',
+					marker: {
+					  color: 'rgb(255, 153, 0)',
+					  size: 10
+					}
+				}];
+				Plotly.plot('chart', data, layout);
+			}, 1000);
+			
+			
+			
+        </script>
+    </div>
+    </body>
+</html>
