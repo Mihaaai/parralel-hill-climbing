@@ -5,7 +5,8 @@
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
-#include <windows.h> 
+#include <windows.h>
+
 
 #define DEBUG_EPOCHS false
 #define DEBUG_CANDIDATES false
@@ -128,7 +129,7 @@ double* hillClimb(double *finalScore, int coordX, int coordY) {
 }
 
 void sequential_climbing(int count) {
-	
+
 	printf("\nSequential climbing:\n");
 	double score;
 	double bestClimber[2], best_score = 0;
@@ -144,7 +145,7 @@ void sequential_climbing(int count) {
 }
 
 void parallel_climbing(int world_rank, int world_size) {
-
+	
 	if (world_rank != 0) {
 		double score;
 		double *climber = hillClimb(&score, rand() % 100, rand() % 100);
@@ -154,7 +155,9 @@ void parallel_climbing(int world_rank, int world_size) {
 		MPI_Send(&climber[1], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
 	}
 	else {
+		
 		double best_phi, best_p, best_score = 0;
+		
 		for (int process = 1; process < world_size; process++) {
 			double phi, p, score;
 			MPI_Recv(&score, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD,
@@ -170,9 +173,64 @@ void parallel_climbing(int world_rank, int world_size) {
 				best_p = p;
 			}
 		}
+		
+
 		printf("Finest climber at %.2f meters : (%.2f, %.2f)\n", best_score, best_phi, best_p);
 	}
 }
+
+void perfect_parallel_climbing(int world_rank, int world_size) {
+	if (world_rank != 0) {
+		double score;
+		double *climber = hillClimb(&score, rand() % 100, rand() % 100);
+
+		MPI_Send(&score, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+		MPI_Send(&climber[0], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+		MPI_Send(&climber[1], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+	}
+	else {
+		int process = 1, rank = 0, *processes;
+		double phi, p, best_score = 0;
+		processes = new (nothrow) int[world_size];
+		for (int i = 1; i < world_size; i++) {
+			processes[i] = 0;
+		}
+		boolean is_score = false, is_phi = false;
+
+		while (process <= (world_size - 1) * 3) {
+			double result;
+			MPI_Status status;
+			MPI_Recv(&result, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
+				&status);
+
+			if (processes[status.MPI_SOURCE] == 0) {
+				processes[status.MPI_SOURCE] = 1;
+				if (best_score < result) {
+					best_score = result;
+					is_phi = false;
+					rank = status.MPI_SOURCE;
+				}
+			}
+			else {
+				if (rank == status.MPI_SOURCE) {
+					if (is_phi == false) {
+						phi = result;
+						is_phi = true;
+					}
+					else {
+						p = result;
+					}
+				}
+			}
+
+			process++;
+		}
+		delete[] processes;
+
+		printf("Finest climber at %.2f meters : (%.2f, %.2f)\n", best_score, phi, p);
+	}
+}
+
 
 
 int main(int argc, char** argv) {
@@ -211,5 +269,20 @@ int main(int argc, char** argv) {
 		printf("Execution time for parallel climbing: %.4f seconds\n", parallel_time_end - parallel_time_start);
 	}
 
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	double parallel_time_start_perfect, parallel_time_end_perfect;
+	if (world_rank == 0) {
+		printf("\nPerfect parallel climbing:\n");
+		parallel_time_start_perfect = MPI_Wtime();
+	}
+	perfect_parallel_climbing(world_rank, world_size);
+
+	if (world_rank == 0) {
+		parallel_time_end_perfect = MPI_Wtime();
+		printf("Execution time for perfect parallel climbing: %.4f seconds\n", parallel_time_end_perfect - parallel_time_start_perfect);
+	}
+
 	MPI_Finalize();
+	
 }
