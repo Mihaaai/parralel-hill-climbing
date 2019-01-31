@@ -2,11 +2,13 @@
 	<head>
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8" />
 	<script src="plotly.min.js"></script>
+	<script src='https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js'></script>
+	<script src="http://localhost:1500/socket.io/socket.io.js"></script>
 	</head>
 	<body>
 	<div class="wrapper">
 		<div id="chart"></div>
-		<script>
+		<script>	
 			function getData() {
 				var arr = [];
 				for(let i = 0; i < 20; i++) {
@@ -43,7 +45,7 @@
 				showscale: false,
 				type: 'surface'
 			}], layout);
-			
+		
 			setInterval(function(){ 
 				var xx = [];
 				var yy = [];
@@ -65,6 +67,7 @@
 				}];
 				Plotly.plot('chart', data, layout);
 			}, 1000);
+			
 		</script>
 	</div>
 	</body>
