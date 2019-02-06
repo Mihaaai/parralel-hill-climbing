@@ -16,6 +16,11 @@
 
 using namespace std;
 
+struct Point
+{
+	double phi, p;
+};
+
 double func(double point[2]) {
 	double phi = point[0];
 	double p = point[1];
@@ -128,13 +133,14 @@ double* hillClimb(double *finalScore, int coordX, int coordY) {
 	}
 }
 
-void sequential_climbing(int count) {
+//Sequential implementation for hill climbing
+void sequential_climbing(Point points[], int nr_points) {
 
 	printf("\nSequential climbing:\n");
 	double score;
 	double bestClimber[2], best_score = 0;
-	for (int i = 0; i < count; i++) {
-		double *climber = hillClimb(&score, rand() % 100, rand() % 100);
+	for (int i = 0; i < nr_points; i++) {
+		double *climber = hillClimb(&score, points[i].phi, points[i].p);
 		if (score > best_score) {
 			best_score = score;
 			bestClimber[0] = climber[0];
@@ -144,93 +150,297 @@ void sequential_climbing(int count) {
 	printf("Finest climber at %.2f meters : (%.2f, %.2f)\n", best_score, bestClimber[0], bestClimber[1]);
 }
 
-void parallel_climbing(int world_rank, int world_size) {
-	
+//Parallel implementation for hill climbing
+void parallel_climbing(int world_rank, int world_size, Point points[], int nr_points) {
+	//Slave
 	if (world_rank != 0) {
-		double score;
-		double *climber = hillClimb(&score, rand() % 100, rand() % 100);
-
-		MPI_Send(&score, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-		MPI_Send(&climber[0], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-		MPI_Send(&climber[1], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-	}
-	else {
-		
-		double best_phi, best_p, best_score = 0;
-		
-		for (int process = 1; process < world_size; process++) {
-			double phi, p, score;
-			MPI_Recv(&score, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD,
+		while (true) {
+			double phi, p, scope;
+			MPI_Recv(&scope, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
 				MPI_STATUS_IGNORE);
-			MPI_Recv(&phi, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD,
-				MPI_STATUS_IGNORE);
-			MPI_Recv(&p, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD,
-				MPI_STATUS_IGNORE);
-
-			if (best_score < score) {
-				best_score = score;
-				best_phi = phi;
-				best_p = p;
+			if (scope != 1) {
+				break;
 			}
+			MPI_Recv(&phi, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
+				MPI_STATUS_IGNORE);
+			MPI_Recv(&p, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
+				MPI_STATUS_IGNORE);
+
+			double score;
+			double *climber = hillClimb(&score, phi, p);
+
+			MPI_Send(&score, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+			MPI_Send(&climber[0], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+			MPI_Send(&climber[1], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
 		}
 		
+	}
+	//Master
+	else {
+		int contor = 0, process = 1;
+		double best_phi, best_p, best_score = 0;
+		//If there are more points than processes
+		if (nr_points >= world_size) {
+			//Where points are stil available
+			while (contor < nr_points) {
+				//Send first points to processes
+				if (contor < world_size - 1) {
+					double scope = 1;
+					MPI_Send(&scope, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					MPI_Send(&points[contor].phi, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					MPI_Send(&points[contor].p, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					contor++;
+					process++;
+				}
+				//Receive message from process and send another point
+				else {
+					if (process % world_size == 0) {
+						process++;
+					}
+					double phi, p, score;
+					MPI_Recv(&score, 1, MPI_DOUBLE, process % world_size, 0, MPI_COMM_WORLD,
+						MPI_STATUS_IGNORE);
+					MPI_Recv(&phi, 1, MPI_DOUBLE, process % world_size, 0, MPI_COMM_WORLD,
+						MPI_STATUS_IGNORE);
+					MPI_Recv(&p, 1, MPI_DOUBLE, process % world_size, 0, MPI_COMM_WORLD,
+						MPI_STATUS_IGNORE);
+
+					if (best_score < score) {
+						best_score = score;
+						best_phi = phi;
+						best_p = p;
+					}
+
+					double scope = 1;
+					MPI_Send(&scope, 1, MPI_DOUBLE, process % world_size, 0, MPI_COMM_WORLD);
+					MPI_Send(&points[contor].phi, 1, MPI_DOUBLE, process % world_size, 0, MPI_COMM_WORLD);
+					MPI_Send(&points[contor].p, 1, MPI_DOUBLE, process % world_size, 0, MPI_COMM_WORLD);
+
+					process++;
+					contor++;
+				}
+			}
+
+			//Compute the messages from the other processes in order
+			for (int i = 1; i < world_size; i++) {
+				if ((process + i) % world_size == 0) {
+					process++;
+				}
+				double phi, p, score;
+				MPI_Recv(&score, 1, MPI_DOUBLE, (process + i) % world_size, 0, MPI_COMM_WORLD,
+					MPI_STATUS_IGNORE);
+				MPI_Recv(&phi, 1, MPI_DOUBLE, (process + i) % world_size, 0, MPI_COMM_WORLD,
+					MPI_STATUS_IGNORE);
+				MPI_Recv(&p, 1, MPI_DOUBLE, (process + i) % world_size, 0, MPI_COMM_WORLD,
+					MPI_STATUS_IGNORE);
+
+				if (best_score < score) {
+					best_score = score;
+					best_phi = phi;
+					best_p = p;
+				}
+
+				//Stop the other process
+				double scope = 0;
+				MPI_Send(&scope, 1, MPI_DOUBLE, (process + i) % world_size, 0, MPI_COMM_WORLD);
+			}
+		}
+		//If there are more processes than points
+		else {
+			for (int process = 1; process < world_size; process++) {
+				//Send the points to first processes
+				if (contor < nr_points) {
+					double scope = 1;
+					MPI_Send(&scope, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					MPI_Send(&points[contor].phi, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					MPI_Send(&points[contor].p, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					contor++;
+				}
+				//Stop the other processs
+				else {
+					double scope = 0;
+					MPI_Send(&scope, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					contor++;
+				}
+			}
+			//Receive messages from processes in order
+			for (int process = 1; process < nr_points + 1; process++) {
+				double phi, p, score;
+				MPI_Recv(&score, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD,
+					MPI_STATUS_IGNORE);
+				MPI_Recv(&phi, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD,
+					MPI_STATUS_IGNORE);
+				MPI_Recv(&p, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD,
+					MPI_STATUS_IGNORE);
+
+				if (best_score < score) {
+					best_score = score;
+					best_phi = phi;
+					best_p = p;
+				}
+
+				double scope = 0;
+				MPI_Send(&scope, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+			}
+		}
 
 		printf("Finest climber at %.2f meters : (%.2f, %.2f)\n", best_score, best_phi, best_p);
 	}
 }
 
-void perfect_parallel_climbing(int world_rank, int world_size) {
+//Perfect parallel implementation for hill climbing
+void perfect_parallel_climbing(int world_rank, int world_size, Point points[], int nr_points) {
+	//Slave
 	if (world_rank != 0) {
-		double score;
-		double *climber = hillClimb(&score, rand() % 100, rand() % 100);
+		while (true) {
+			double phi, p, scope;
+			MPI_Recv(&scope, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
+				MPI_STATUS_IGNORE);
+			if (scope != 1) {
+				break;
+			}
+			MPI_Recv(&phi, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
+				MPI_STATUS_IGNORE);
+			MPI_Recv(&p, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
+				MPI_STATUS_IGNORE);
 
-		MPI_Send(&score, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-		MPI_Send(&climber[0], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-		MPI_Send(&climber[1], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+			double score;
+			double *climber = hillClimb(&score, phi, p);
+
+			MPI_Send(&score, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+			MPI_Send(&climber[0], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+			MPI_Send(&climber[1], 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+		}
 	}
+	//Master
 	else {
-		int process = 1, rank = 0, *processes;
-		double phi, p, best_score = 0;
+		int contor = 0, process = 1;
+		double best_phi, best_p, best_score = 0;
+
+		int rank = 0, *processes;
 		processes = new (nothrow) int[world_size];
 		for (int i = 1; i < world_size; i++) {
 			processes[i] = 0;
 		}
 		boolean is_score = false, is_phi = false;
 
-		while (process <= (world_size - 1) * 3) {
-			double result;
-			MPI_Status status;
-			MPI_Recv(&result, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
-				&status);
-
-			if (processes[status.MPI_SOURCE] == 0) {
-				processes[status.MPI_SOURCE] = 1;
-				if (best_score < result) {
-					best_score = result;
-					is_phi = false;
-					rank = status.MPI_SOURCE;
-				}
-			}
-			else {
-				if (rank == status.MPI_SOURCE) {
-					if (is_phi == false) {
-						phi = result;
-						is_phi = true;
-					}
-					else {
-						p = result;
-					}
-				}
+		//If there are more points than processes
+		if (nr_points >= world_size) {
+			//Send first points to their processes
+			for (int process = 1; process < world_size; process++) {
+				double scope = 1;
+				MPI_Send(&scope, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+				MPI_Send(&points[contor].phi, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+				MPI_Send(&points[contor].p, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+				contor++;
 			}
 
-			process++;
+			int unfinished_processes = world_size - 1;
+			//While all points are not processed or all other processes are not finished 
+			while (contor < nr_points || unfinished_processes != 0) {
+				double result;
+				MPI_Status status;
+				MPI_Recv(&result, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
+					&status);
+
+				if (processes[status.MPI_SOURCE] == 0) {
+					processes[status.MPI_SOURCE]++;
+					if (best_score < result) {
+						best_score = result;
+						is_phi = false;
+						rank = status.MPI_SOURCE;
+					}
+				}
+				else {
+					if (rank == status.MPI_SOURCE) {
+						if (is_phi == false) {
+							best_phi = result;
+							is_phi = true;
+						}
+						else {
+							best_p = result;
+						}
+					}
+					processes[status.MPI_SOURCE]++;
+					if (processes[status.MPI_SOURCE] == 3) {
+						contor++;
+						//If there are unproccesed poins, send to the same process
+						if (contor < nr_points) {
+							processes[status.MPI_SOURCE] = 0;
+							double scope = 1;
+							MPI_Send(&scope, 1, MPI_DOUBLE, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+							MPI_Send(&points[contor].phi, 1, MPI_DOUBLE, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+							MPI_Send(&points[contor].p, 1, MPI_DOUBLE, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+						}
+						//Stop the other process
+						else {
+							double scope = 0;
+							MPI_Send(&scope, 1, MPI_DOUBLE, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+							unfinished_processes--;
+						}
+					}
+				}
+			}
 		}
-		delete[] processes;
+		else {
+			for (int process = 1; process < world_size; process++) {
+				//Send first points to processes
+				if (contor < nr_points) {
+					double scope = 1;
+					MPI_Send(&scope, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					MPI_Send(&points[contor].phi, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					MPI_Send(&points[contor].p, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					contor++;
+				}
+				//Stop the other procceses
+				else {
+					double scope = 0;
+					MPI_Send(&scope, 1, MPI_DOUBLE, process, 0, MPI_COMM_WORLD);
+					contor++;
+				}
+			}
+			
+			//Receive messages from unknown process
+			int process = 1;
+			while (process <= nr_points) {
+				double result;
+				MPI_Status status;
+				MPI_Recv(&result, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
+					&status);
 
-		printf("Finest climber at %.2f meters : (%.2f, %.2f)\n", best_score, phi, p);
+				if (processes[status.MPI_SOURCE] == 0) {
+					processes[status.MPI_SOURCE]++;
+					if (best_score < result) {
+						best_score = result;
+						is_phi = false;
+						rank = status.MPI_SOURCE;
+					}
+				}
+				else {
+					if (rank == status.MPI_SOURCE) {
+						if (is_phi == false) {
+							best_phi = result;
+							is_phi = true;
+						}
+						else {
+							best_p = result;
+						}
+					}
+					processes[status.MPI_SOURCE]++;
+					if (processes[status.MPI_SOURCE] == 3) {
+						double scope = 0;
+						MPI_Send(&scope, 1, MPI_DOUBLE, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+						process++;
+					}
+
+				}
+			}
+			delete[] processes;
+		}
+
+		printf("Finest climber at %.2f meters : (%.2f, %.2f)\n", best_score, best_phi, best_p);
 	}
 }
-
 
 
 int main(int argc, char** argv) {
@@ -244,25 +454,36 @@ int main(int argc, char** argv) {
 
 	srand(time(NULL) + world_rank);
 
+	//Create points where climbers can start
+	Point points[20];
+	int nr_points = 0;
+	for (int i = 0; i < 20; i++) {
+		double phi = rand() % 20;
+		double p = rand() % 20;
+		points[i] = { phi, p };
+		nr_points++;
+	}
+	
+	//Sequential implementation for hill climbing
 	if (world_rank == 0) {
 		double sequential_time_start, sequential_time_end;
-		if (argc == 2) {
-			sequential_time_start = MPI_Wtime();
-			sequential_climbing(atoi(argv[1]));
-			sequential_time_end = MPI_Wtime();
+		
+		sequential_time_start = MPI_Wtime();
+		sequential_climbing(points, nr_points);
+		sequential_time_end = MPI_Wtime();
 
-			printf("Execution time for sequential climbing: %.4f seconds\n", sequential_time_end - sequential_time_start);
-		}
+		printf("Execution time for sequential climbing: %.4f seconds\n", sequential_time_end - sequential_time_start);
 		printf("\nParallel climbing:\n");
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
+	//Parallel implementation for hill climbing
 	double parallel_time_start, parallel_time_end;
 	if (world_rank == 0) {
 		parallel_time_start = MPI_Wtime();
 	}
-	parallel_climbing(world_rank, world_size);
+	parallel_climbing(world_rank, world_size, points, nr_points);
 
 	if (world_rank == 0) {
 		parallel_time_end = MPI_Wtime();
@@ -270,13 +491,14 @@ int main(int argc, char** argv) {
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
-
+	
+	//Perfect parallel implementation for hill climbing
 	double parallel_time_start_perfect, parallel_time_end_perfect;
 	if (world_rank == 0) {
 		printf("\nPerfect parallel climbing:\n");
 		parallel_time_start_perfect = MPI_Wtime();
 	}
-	perfect_parallel_climbing(world_rank, world_size);
+	perfect_parallel_climbing(world_rank, world_size, points, nr_points);
 
 	if (world_rank == 0) {
 		parallel_time_end_perfect = MPI_Wtime();
@@ -284,5 +506,4 @@ int main(int argc, char** argv) {
 	}
 
 	MPI_Finalize();
-	
 }
