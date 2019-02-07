@@ -13,14 +13,16 @@ BP best_score x y  //best score of parrallel algorithm
 FP duration // final of parralel algorithm, followed by time duration
 */
 
-#include "pch.h"
+// #include "pch.h"
 #include <mpi.h>
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
-#include <windows.h> 
+#include <limits>
+#include <unistd.h>
+// #include <windows.h> 
 
 #define DEBUG_OUTPUT false
 #define DEBUG_EPOCHS false
@@ -63,7 +65,8 @@ void printStatus(double currentPoint[2], double stepSize[2]) {
 }
 
 double* hillClimb(double *finalScore, int coordX, int coordY, bool isParralel) {
-	Sleep(50);
+	sleep(50);
+	// Sleep(50);
 	// number of iterations with no moves before we conclude that we converged
 	int burnoutEpochs = 100;
 	double stepSize[2] = { 0.5, 0.5 };
