@@ -1,4 +1,5 @@
 #define RUN_ON_WINDOWS false
+
 /*EXPECTED FULL OUTPUT :
 Example with comments explaining lines
 {HILL CLIMBING LINE} = world_rank x y
@@ -26,6 +27,7 @@ FP duration // final of parralel algorithm, followed by time duration
 #include <ctime>
 #include <limits>
 #include <iostream>
+#include<limits>
 
 #define MAX_ITERATIONS 1000
 #define DEBUG_EPOCHS false
@@ -75,6 +77,7 @@ void printStatus(double currentPoint[2], double stepSize[2]) {
 	printf("Current Point : (%.2f, %.2f). Step size : (%.2f, %.2f). \n",
 		currentPoint[0], currentPoint[1], stepSize[0], stepSize[1]);
 }
+
 
 double* hillClimb(double *finalScore, int coordX, int coordY, bool doPrint) {
 	
