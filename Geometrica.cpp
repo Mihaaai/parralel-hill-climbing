@@ -1,11 +1,18 @@
-#include "pch.h"
+#define RUN_ON_WINDOWS false
+
+#if RUN_ON_WINDOWS
+	#include "pch.h"
+	#include <windows.h>
+#else 
+	#include <unistd.h>
+#endif
 #include <mpi.h>
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
-#include <windows.h>
+#include<limits>
 
 
 #define DEBUG_EPOCHS false
@@ -54,7 +61,6 @@ void printStatus(double currentPoint[2], double stepSize[2]) {
 }
 
 double* hillClimb(double *finalScore, int coordX, int coordY) {
-	Sleep(50);
 	// number of iterations with no moves before we conclude that we converged
 	int burnoutEpochs = 100;
 	double stepSize[2] = { 0.5, 0.5 };
@@ -322,7 +328,7 @@ void perfect_parallel_climbing(int world_rank, int world_size, Point points[], i
 		for (int i = 1; i < world_size; i++) {
 			processes[i] = 0;
 		}
-		boolean is_score = false, is_phi = false;
+		bool is_score = false, is_phi = false;
 
 		//If there are more points than processes
 		if (nr_points >= world_size) {
