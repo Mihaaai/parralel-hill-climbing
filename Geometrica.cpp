@@ -35,7 +35,7 @@ FP duration // final of parralel algorithm, followed by time duration
 #define M_PI 3.1415
 #define DEBUG_OUTPUT false
 #define FULL_OUTPUT true
-#define FULL_OUTPUT_2 true
+#define FULL_OUTPUT_2 false
 
 using namespace std;
 
@@ -164,7 +164,7 @@ double* hillClimb(double *finalScore, int coordX, int coordY, bool doPrint) {
 			epoch = 0;
 			lastImprovement = improvement;
 		}
-		if( iterations < MAX_ITERATIONS){
+		if( iterations > MAX_ITERATIONS){
 			return currentPoint;
 		}
 
@@ -513,6 +513,9 @@ int main(int argc, char** argv) {
 	int nr_points = 0;
 	if(argc >= 2){
 		sscanf(argv[1], "%d", &nr_points);
+	}
+	else{
+		nr_points = 20;
 	}
 	
 
